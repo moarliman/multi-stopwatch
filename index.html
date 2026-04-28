@@ -120,9 +120,16 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      cursor: pointer;
+      border-radius: 6px;
+      padding: 2px 4px;
+      margin: -2px -4px;
+      transition: background 0.15s;
     }
+    .card-name:hover { background: var(--primary-light); }
+    .card-name:active { background: var(--primary-light); }
 
-    .reset-btn {
+    .icon-btn {
       flex-shrink: 0;
       width: 28px;
       height: 28px;
@@ -137,7 +144,7 @@
       justify-content: center;
       transition: background 0.15s, color 0.15s;
     }
-    .reset-btn:active { background: var(--danger); color: #fff; }
+    .icon-btn:active { background: var(--danger); color: #fff; }
 
     .card-time {
       font-size: 30px;
@@ -270,9 +277,9 @@
 
 <div class="grid" id="grid"></div>
 
-<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true" aria-label="Add category">
+<div class="modal-overlay" id="modalOverlay" role="dialog" aria-modal="true">
   <div class="modal">
-    <h2>New Category</h2>
+    <h2 id="modalTitle">New Category</h2>
     <input class="modal-input" id="catName" type="text" placeholder="e.g. Work, Exercise…" maxlength="30" autocomplete="off">
     <div class="modal-actions">
       <button class="btn-cancel" id="closeModal">Cancel</button>
@@ -398,16 +405,26 @@
 
     const nameEl = document.createElement('div');
     nameEl.className = 'card-name';
+    nameEl.id = 'n' + cat.id;
     nameEl.textContent = cat.name;
+    nameEl.title = 'Rename';
+    nameEl.addEventListener('click', () => openRenameModal(cat.id));
 
     const resetBtn = document.createElement('button');
-    resetBtn.className = 'reset-btn';
+    resetBtn.className = 'icon-btn';
     resetBtn.title = 'Reset';
     resetBtn.innerHTML = '&#8635;';
     resetBtn.addEventListener('click', () => resetCategory(cat.id));
 
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'icon-btn';
+    deleteBtn.title = 'Delete';
+    deleteBtn.innerHTML = '&times;';
+    deleteBtn.addEventListener('click', () => deleteCategory(cat.id));
+
     header.appendChild(nameEl);
     header.appendChild(resetBtn);
+    header.appendChild(deleteBtn);
 
     // time display
     const timeEl = document.createElement('div');
@@ -452,30 +469,80 @@
     categories.forEach(cat => grid.appendChild(createCard(cat)));
   }
 
+  // ── Delete / rename actions ────────────────────────────────────────────────
+  function deleteCategory(id) {
+    const idx = categories.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    categories.splice(idx, 1);
+    saveState();
+    const card = document.getElementById('c' + id);
+    if (card) card.remove();
+    const grid = document.getElementById('grid');
+    if (grid.children.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.innerHTML = '<strong>No categories yet</strong>Tap <b>+</b> to add your first one.';
+      grid.appendChild(empty);
+    }
+  }
+
+  function renameCategory(id, newName) {
+    const cat = categories.find(c => c.id === id);
+    if (!cat) return;
+    cat.name = newName;
+    saveState();
+    const nameEl = document.getElementById('n' + id);
+    if (nameEl) nameEl.textContent = newName;
+  }
+
   // ── Modal ──────────────────────────────────────────────────────────────────
-  const overlay  = document.getElementById('modalOverlay');
-  const catInput = document.getElementById('catName');
+  const overlay   = document.getElementById('modalOverlay');
+  const catInput  = document.getElementById('catName');
+  const modalTitle = document.getElementById('modalTitle');
+  const confirmBtn = document.getElementById('confirmAdd');
+
+  let editingId = null;
 
   function openModal() {
+    editingId = null;
+    modalTitle.textContent = 'New Category';
+    confirmBtn.textContent = 'Add';
     catInput.value = '';
     overlay.classList.add('open');
-    // slight delay lets the animation start before keyboard appears
     setTimeout(() => catInput.focus(), 120);
+  }
+
+  function openRenameModal(id) {
+    const cat = categories.find(c => c.id === id);
+    if (!cat) return;
+    editingId = id;
+    modalTitle.textContent = 'Rename Category';
+    confirmBtn.textContent = 'Save';
+    catInput.value = cat.name;
+    overlay.classList.add('open');
+    setTimeout(() => { catInput.focus(); catInput.select(); }, 120);
   }
 
   function closeModal() {
     overlay.classList.remove('open');
     catInput.blur();
+    editingId = null;
   }
 
   function confirmAdd() {
     const name = catInput.value.trim();
     if (!name) { catInput.focus(); return; }
+
+    if (editingId !== null) {
+      renameCategory(editingId, name);
+      closeModal();
+      return;
+    }
+
     const cat = { id: nextId++, name, accumulated: 0, isTracking: false, startTime: null };
     categories.push(cat);
     saveState();
     closeModal();
-    // append card without full re-render
     const grid = document.getElementById('grid');
     const empty = grid.querySelector('.empty-state');
     if (empty) empty.remove();
