@@ -282,12 +282,35 @@
 </div>
 
 <script>
+  // ── Persistence ───────────────────────────────────────────────────────────
+  const STORAGE_KEY = 'category-timer-v1';
+
+  function saveState() {
+    const data = {
+      nextId,
+      categories: categories.map(c => ({
+        id: c.id,
+        name: c.name,
+        accumulated: c.isTracking ? c.accumulated + (Date.now() - c.startTime) : c.accumulated,
+        isTracking: false,
+        startTime: null,
+      })),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch { return null; }
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
-  let categories = [
-    { id: 1, name: 'Work',     accumulated: 0, isTracking: false, startTime: null },
-    { id: 2, name: 'Exercise', accumulated: 0, isTracking: false, startTime: null },
-  ];
-  let nextId = 3;
+  const saved = loadState();
+  let categories = saved ? saved.categories : [];
+  let nextId = saved ? saved.nextId : 1;
   let rafId  = null;
 
   // ── Utilities ──────────────────────────────────────────────────────────────
@@ -335,6 +358,7 @@
     cat.isTracking = false;
     cat.startTime  = null;
     updateCardState(cat);
+    saveState();
   }
 
   function resetCategory(id) {
@@ -344,6 +368,7 @@
     cat.isTracking  = false;
     cat.startTime   = null;
     updateCardState(cat);
+    saveState();
   }
 
   // ── DOM helpers (surgical updates to avoid full re-render) ─────────────────
@@ -448,6 +473,7 @@
     if (!name) { catInput.focus(); return; }
     const cat = { id: nextId++, name, accumulated: 0, isTracking: false, startTime: null };
     categories.push(cat);
+    saveState();
     closeModal();
     // append card without full re-render
     const grid = document.getElementById('grid');
@@ -466,6 +492,11 @@
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
 
   // ── Boot ───────────────────────────────────────────────────────────────────
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveState();
+  });
+  window.addEventListener('pagehide', saveState);
+
   render();
 </script>
 </body>
